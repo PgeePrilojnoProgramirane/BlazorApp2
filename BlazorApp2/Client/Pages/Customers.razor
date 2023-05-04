@@ -1,0 +1,126 @@
+﻿@page "/customers"
+@inject HttpClient Http
+@using BlazorApp2.Shared
+@using BlazorApp2.Shared
+@using BlazorApp2.Client.Components
+@using System.Reflection
+
+<h1>Customers</h1>
+
+<form onsubmit="return false;">
+	<div class="input-group input-group-md mb-2">
+		<span class="input-group-text">Search by Name</span>
+		<input type="text" class="form-control" @bind-value="filter" />
+		<button class="btn btn-primary" @onclick="Search">Search</button>
+	</div>
+</form>
+
+@if (custs == null)
+{
+	<p><em>Loading...</em></p>
+}
+
+<div class="table-responsive">
+	<table class="table table-hover table-striped">
+		<thead>
+			<tr><th>name</th><th>address</th><th colspan="2">zip</th></tr>
+		</thead>
+		<tbody>
+			<DataRepeaterComponent Items="custs">
+				<Row Context="cust">
+					<tr>
+						<td>
+							<input type="text" class="form-control" value="@cust.name" @onchange="@((ChangeEventArgs e) => Save(e, cust, "name"))" />
+						</td>
+						<td>
+							<input type="text" class="form-control" value="@cust.address" @onchange="@((ChangeEventArgs e) => Save(e, cust, "address"))" />
+						</td>
+						<td>
+							<input type="text" class="form-control" value="@cust.zip" @onchange="@((ChangeEventArgs e) => Save(e, cust, "zip"))" />
+						</td>
+						<td>
+							<button class="btn btn-sm btn-danger" @onclick="@(() => Delete(cust.id))">delete</button>
+						</td>
+					</tr>
+				</Row>
+			</DataRepeaterComponent>
+		</tbody>
+	</table>
+</div>
+
+<form class="mt-5" onsubmit="return false;">
+	<div class="input-group input-group-md mb-2">
+		<span class="input-group-text">Name</span>
+		<input type="text" class="form-control" autocomplete="off" required @bind-value="newcust.name" />
+	</div>
+	<div class="input-group input-group-md mb-2">
+		<span class="input-group-text">Address</span>
+		<input type="text" class="form-control" autocomplete="off" required @bind-value="newcust.address" />
+	</div>
+	<div class="input-group input-group-md mb-2">
+		<span class="input-group-text">Zip</span>
+		<input type="text" class="form-control" autocomplete="off" required @bind-value="newcust.zip" />
+		<button class="btn btn-success" @onclick="Add">Add</button>
+	</div>
+</form>
+
+@code {
+
+	private List<Customer> custs;
+	private Customer newcust = new Customer();
+	private string filter;
+
+	protected override async Task OnInitializedAsync()
+	{
+		await base.OnInitializedAsync();
+
+		custs = await Http.GetFromJsonAsync<List<Customer>>("/api/customers");
+	}
+
+	private async Task Search()
+	{
+		custs = await Http.GetFromJsonAsync<List<Customer>>($"/api/customers?name={Uri.EscapeDataString(filter)}");
+	}
+
+	private async Task Add()
+	{
+		using (var msg = await Http.PostAsJsonAsync<Customer>("/api/customers", newcust, System.Threading.CancellationToken.None))
+		{
+			if (msg.IsSuccessStatusCode)
+			{
+				custs.Add(await msg.Content.ReadFromJsonAsync<Customer>());
+				newcust.name = newcust.address = newcust.zip = null;
+			}
+		}
+	}
+
+	private async Task Save(ChangeEventArgs e, Customer cust, string propField)
+	{
+		PropertyInfo pinfo = typeof(Customer).GetProperty(propField);
+		pinfo.SetValue(cust, e.Value);
+
+		using (var msg = await Http.PutAsJsonAsync<Customer>($"/api/customers/{cust.id}", cust, System.Threading.CancellationToken.None))
+		{
+			if (msg.IsSuccessStatusCode)
+			{
+			}
+			else
+			{
+				// DO SOMETHING
+			}
+		}
+	}
+
+	private async Task Delete(Guid id)
+	{
+		using (var msg = await Http.DeleteAsync($"/api/customers/{id}"))
+		{
+			if (msg.IsSuccessStatusCode)
+			{
+				int i;
+				for (i = 0; i < custs.Count && custs[i].id != id; i++) ;
+				custs.RemoveAt(i);
+			}
+		}
+	}
+}
